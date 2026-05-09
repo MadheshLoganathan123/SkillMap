@@ -3,7 +3,7 @@
 import Link from "next/link"
 import { usePathname } from "next/navigation"
 import { cn } from "@/lib/utils"
-import { Target, LayoutDashboard, Upload, Map, TrendingUp, LogOut } from "lucide-react"
+import { Target, LayoutDashboard, Upload, Map, TrendingUp, MessageSquare, LogOut } from "lucide-react"
 import { createClient } from "@/lib/supabase/client"
 import { useRouter } from "next/navigation"
 import { Button } from "@/components/ui/button"
@@ -18,6 +18,11 @@ const navItems = [
     label: "Upload & Analyze",
     href: "/upload",
     icon: Upload,
+  },
+  {
+    label: "AI Interview",
+    href: "/interview-setup",
+    icon: MessageSquare,
   },
   {
     label: "Learning Roadmap",

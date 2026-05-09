@@ -33,6 +33,8 @@ export default function ProgressPage() {
   const [roadmap, setRoadmap] = useState<Roadmap | null>(null)
   const [progress, setProgress] = useState<ProgressItem[]>([])
   const [updating, setUpdating] = useState<string | null>(null)
+  const [error, setError] = useState<string | null>(null)
+  const [retryTarget, setRetryTarget] = useState<ProgressItem | null>(null)
 
   useEffect(() => {
     loadData()
@@ -43,30 +45,51 @@ export default function ProgressPage() {
     const supabase = createClient()
     
     try {
-      // Get latest roadmap
-      const { data: latestRoadmap } = await supabase
-        .from("roadmaps")
-        .select("*")
-        .order("created_at", { ascending: false })
-        .limit(1)
-        .single()
+      const { data: { user } } = await supabase.auth.getUser()
+      if (!user) {
+        setLoading(false)
+        return
+      }
+
+      console.log("Loading progress data for user:", user.id)
+
+      // Fetch from backend API
+      const response = await fetch(`http://localhost:8000/progress/${user.id}`)
       
-      if (latestRoadmap) {
-        setRoadmap(latestRoadmap)
+      if (response.ok) {
+        const data = await response.json()
+        console.log("Progress data:", data)
         
-        // Get progress for this roadmap
-        const { data: progressData } = await supabase
-          .from("progress")
-          .select("*")
-          .eq("roadmap_id", latestRoadmap.id)
-          .order("week_index", { ascending: true })
-        
-        if (progressData) {
-          setProgress(progressData)
+        if (data.progress && data.progress.length > 0) {
+          setProgress(data.progress)
+          
+          // Reconstruct roadmap from progress data
+          const weeklyData: Record<number, string[]> = {}
+          data.progress.forEach((p: ProgressItem) => {
+            if (!weeklyData[p.week_index]) {
+              weeklyData[p.week_index] = []
+            }
+            if (!weeklyData[p.week_index].includes(p.skill_name)) {
+              weeklyData[p.week_index].push(p.skill_name)
+            }
+          })
+          
+          const weeks = Object.entries(weeklyData).map(([index, skills]) => ({
+            week: parseInt(index) + 1,
+            skills
+          }))
+          
+          setRoadmap({
+            id: data.roadmap_id,
+            weeks
+          })
         }
+      } else {
+        console.error("Failed to fetch progress:", response.status)
       }
     } catch (err) {
       console.error("Error loading data:", err)
+      setError(err instanceof Error ? err.message : 'Failed to load progress data')
     } finally {
       setLoading(false)
     }
@@ -74,37 +97,67 @@ export default function ProgressPage() {
 
   async function toggleSkillCompletion(progressItem: ProgressItem) {
     setUpdating(progressItem.id)
-    const supabase = createClient()
-    
-    try {
-      const newCompleted = !progressItem.completed
-      const { error } = await supabase
-        .from("progress")
-        .update({
-          completed: newCompleted,
-          completed_at: newCompleted ? new Date().toISOString() : null
+    setError(null)
+    setRetryTarget(null)
+
+    const maxAttempts = 2
+    for (let attempt = 1; attempt <= maxAttempts; attempt++) {
+      try {
+        const newCompleted = !progressItem.completed
+
+        console.log(`PATCH attempt ${attempt} for progress ${progressItem.id}`)
+
+        const res = await fetch('/api/progress', {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ progressId: progressItem.id, completed: newCompleted })
         })
-        .eq("id", progressItem.id)
-      
-      if (error) throw error
-      
-      setProgress(prev =>
-        prev.map(p =>
-          p.id === progressItem.id
-            ? { ...p, completed: newCompleted, completed_at: newCompleted ? new Date().toISOString() : null }
-            : p
+
+        const json = await res.json().catch(() => ({}))
+
+        if (!res.ok) {
+          console.warn(`Server returned ${res.status} on attempt ${attempt}`, json)
+          if (attempt < maxAttempts) {
+            // brief backoff before retry
+            await new Promise(r => setTimeout(r, 300 * attempt))
+            continue
+          }
+          throw new Error(json?.error || `Server error (${res.status})`)
+        }
+
+        const updated = json.progress
+
+        setProgress(prev =>
+          prev.map(p =>
+            p.id === progressItem.id
+              ? { ...p, completed: updated.completed, completed_at: updated.completed_at }
+              : p
+          )
         )
-      )
-    } catch (err) {
-      console.error("Error updating progress:", err)
-    } finally {
-      setUpdating(null)
+
+        // success
+        setError(null)
+        setRetryTarget(null)
+        break
+      } catch (err) {
+        console.error(`Attempt ${attempt} failed for ${progressItem.id}:`, err)
+        if (attempt === maxAttempts) {
+          const msg = err instanceof Error ? err.message : 'Failed to update progress'
+          setError(msg)
+          setRetryTarget(progressItem)
+        } else {
+          // short delay before retry
+          await new Promise(r => setTimeout(r, 200 * attempt))
+        }
+      }
     }
+
+    setUpdating(null)
   }
 
   if (loading) {
     return (
-      <div className="flex items-center justify-center min-h-[400px]">
+      <div className="flex items-center justify-center min-h-100vh">
         <Loader2 className="w-8 h-8 animate-spin text-primary" />
       </div>
     )
@@ -156,6 +209,28 @@ export default function ProgressPage() {
         <p className="text-muted-foreground mt-1">
           Monitor your learning journey and check off skills as you master them.
         </p>
+        {error && (
+          <div className="mt-4">
+            <Alert variant="destructive">
+              <AlertDescription>
+                {error}
+                <div className="mt-3 flex items-center justify-center">
+                  <Button size="sm" onClick={() => {
+                    if (retryTarget) {
+                      setError(null)
+                      // retry the same toggle action
+                      toggleSkillCompletion(retryTarget)
+                    } else {
+                      setError(null)
+                    }
+                  }}>
+                    Retry
+                  </Button>
+                </div>
+              </AlertDescription>
+            </Alert>
+          </div>
+        )}
       </div>
 
       {/* Overall Progress Card */}

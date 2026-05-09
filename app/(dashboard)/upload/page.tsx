@@ -1,14 +1,13 @@
 "use client"
 
-import { useState } from "react"
+import { useState, useRef } from "react"
 import { useRouter } from "next/navigation"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Textarea } from "@/components/ui/textarea"
 import { Label } from "@/components/ui/label"
 import { Alert, AlertDescription } from "@/components/ui/alert"
-import { FileText, Briefcase, Loader2, Sparkles, CheckCircle2, XCircle } from "lucide-react"
-import { createClient } from "@/lib/supabase/client"
+import { FileText, Briefcase, Loader2, Sparkles, Upload as UploadIcon, X } from "lucide-react"
 import { AnalysisResults } from "@/components/dashboard/analysis-results"
 
 interface AnalysisResult {
@@ -17,19 +16,34 @@ interface AnalysisResult {
   existingSkills: string[]
   missingSkills: string[]
   skillScores: Record<string, number>
+  achievements?: string[]
+  projects?: string[]
 }
 
 export default function UploadPage() {
-  const [resume, setResume] = useState("")
+  const [file, setFile] = useState<File | null>(null)
   const [jobDescription, setJobDescription] = useState("")
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [result, setResult] = useState<AnalysisResult | null>(null)
+  const fileInputRef = useRef<HTMLInputElement>(null)
   const router = useRouter()
 
+  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    if (e.target.files && e.target.files[0]) {
+      const selectedFile = e.target.files[0]
+      if (selectedFile.type !== "application/pdf") {
+        setError("Please upload a PDF file.")
+        return
+      }
+      setFile(selectedFile)
+      setError(null)
+    }
+  }
+
   const handleAnalyze = async () => {
-    if (!resume.trim() || !jobDescription.trim()) {
-      setError("Please provide both your resume and the job description.")
+    if (!file || !jobDescription.trim()) {
+      setError("Please provide both your resume (PDF) and the job description.")
       return
     }
 
@@ -37,20 +51,39 @@ export default function UploadPage() {
     setError(null)
 
     try {
-      const response = await fetch("/api/analyze", {
+      const formData = new FormData()
+      formData.append("file", file)
+      formData.append("job_description", jobDescription)
+
+      // Pointing to the FastAPI backend
+      const response = await fetch("http://localhost:8000/process-resume", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ resume, jobDescription }),
+        body: formData,
       })
 
       if (!response.ok) {
-        throw new Error("Failed to analyze. Please try again.")
+        throw new Error("Failed to analyze. Ensure the backend is running.")
       }
 
       const data = await response.json()
-      setResult(data)
+      
+      // Map FastAPI response to the frontend's expected format
+      const matchScore = data.gap_analysis?.match_percentage || 0
+      const existingSkills = data.gap_analysis?.shared_skills || []
+      const missingSkills = data.gap_analysis?.missing_skills || []
+      
+      setResult({
+        id: Math.random().toString(36).substring(7),
+        matchScore: Math.round(matchScore),
+        existingSkills: existingSkills,
+        missingSkills: missingSkills,
+        skillScores: existingSkills.reduce((acc: any, skill: string) => ({ ...acc, [skill]: 90 }), {}),
+        achievements: data.resume_analysis?.achievements || [],
+        projects: data.resume_analysis?.projects || []
+      })
     } catch (err) {
-      setError(err instanceof Error ? err.message : "An error occurred")
+      console.error(err)
+      setError(err instanceof Error ? err.message : "An error occurred connecting to the backend.")
     } finally {
       setLoading(false)
     }
@@ -67,7 +100,7 @@ export default function UploadPage() {
       <div>
         <h1 className="text-3xl font-bold text-foreground">Upload & Analyze</h1>
         <p className="text-muted-foreground mt-1">
-          Paste your resume and a job description to identify your skill gaps.
+          Upload your resume PDF and paste a job description to identify your skill gaps.
         </p>
       </div>
 
@@ -79,7 +112,7 @@ export default function UploadPage() {
 
       {!result ? (
         <div className="grid gap-6 md:grid-cols-2">
-          {/* Resume Input */}
+          {/* Resume Upload */}
           <Card>
             <CardHeader>
               <CardTitle className="flex items-center gap-2">
@@ -87,22 +120,52 @@ export default function UploadPage() {
                 Your Resume
               </CardTitle>
               <CardDescription>
-                Paste your resume text or key skills and experience
+                Upload your resume in PDF format
               </CardDescription>
             </CardHeader>
             <CardContent>
-              <div className="space-y-2">
-                <Label htmlFor="resume">Resume Content</Label>
-                <Textarea
-                  id="resume"
-                  placeholder="Paste your resume here...
-
-Example:
-Software Engineer with 5 years of experience in web development. Proficient in JavaScript, React, Node.js, and PostgreSQL. Experience with agile methodologies and team leadership."
-                  className="min-h-[300px] resize-none"
-                  value={resume}
-                  onChange={(e) => setResume(e.target.value)}
-                />
+              <div className="space-y-4">
+                <Label htmlFor="resume-upload" className="sr-only">Upload Resume</Label>
+                <div 
+                  className={`border-2 border-dashed rounded-lg p-8 text-center cursor-pointer transition-colors ${
+                    file ? "border-primary bg-primary/5" : "border-muted-foreground/25 hover:border-primary/50"
+                  }`}
+                  onClick={() => fileInputRef.current?.click()}
+                >
+                  <input
+                    type="file"
+                    id="resume-upload"
+                    className="hidden"
+                    accept=".pdf"
+                    ref={fileInputRef}
+                    onChange={handleFileChange}
+                  />
+                  {file ? (
+                    <div className="flex flex-col items-center">
+                      <FileText className="w-10 h-10 text-primary mb-2" />
+                      <p className="text-sm font-medium text-foreground">{file.name}</p>
+                      <p className="text-xs text-muted-foreground">{(file.size / 1024).toFixed(1)} KB</p>
+                      <Button 
+                        variant="ghost" 
+                        size="sm" 
+                        className="mt-2 text-destructive hover:text-destructive/80"
+                        onClick={(e) => {
+                          e.stopPropagation()
+                          setFile(null)
+                        }}
+                      >
+                        <X className="w-4 h-4 mr-1" />
+                        Remove
+                      </Button>
+                    </div>
+                  ) : (
+                    <div className="flex flex-col items-center">
+                      <UploadIcon className="w-10 h-10 text-muted-foreground mb-2" />
+                      <p className="text-sm font-medium">Click to upload or drag and drop</p>
+                      <p className="text-xs text-muted-foreground">PDF only (max 5MB)</p>
+                    </div>
+                  )}
+                </div>
               </div>
             </CardContent>
           </Card>
@@ -123,11 +186,8 @@ Software Engineer with 5 years of experience in web development. Proficient in J
                 <Label htmlFor="jobDescription">Job Description</Label>
                 <Textarea
                   id="jobDescription"
-                  placeholder="Paste the job description here...
-
-Example:
-We are looking for a Senior Full-Stack Developer with experience in TypeScript, React, Next.js, and cloud services (AWS/GCP). Knowledge of GraphQL and microservices architecture is a plus."
-                  className="min-h-[300px] resize-none"
+                  placeholder="Paste the job description here..."
+                  className="min-h-50 resize-none"
                   value={jobDescription}
                   onChange={(e) => setJobDescription(e.target.value)}
                 />
@@ -141,7 +201,7 @@ We are looking for a Senior Full-Stack Developer with experience in TypeScript, 
           onGenerateRoadmap={handleGenerateRoadmap}
           onNewAnalysis={() => {
             setResult(null)
-            setResume("")
+            setFile(null)
             setJobDescription("")
           }}
         />
@@ -152,7 +212,7 @@ We are looking for a Senior Full-Stack Developer with experience in TypeScript, 
           <Button 
             size="lg" 
             onClick={handleAnalyze} 
-            disabled={loading || !resume.trim() || !jobDescription.trim()}
+            disabled={loading || !file || !jobDescription.trim()}
             className="gap-2"
           >
             {loading ? (

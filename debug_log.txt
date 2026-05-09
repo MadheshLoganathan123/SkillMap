@@ -1,0 +1,4 @@
+DEBUG: Using backend module from: C:\Users\LAPTOP\OneDrive\Desktop\SkillMap\backend\__init__.py
+DEBUG: save_roadmap_data called with user_id: 00000000-0000-0000-0000-000000000000
+DEBUG: Attempting to insert into 'user_roadmaps' table...
+DEBUG: Supabase response received: data=[{'id': '9f2f4cd7-6213-4571-818b-c86a0895bb06', 'user_id': '00000000-0000-0000-0000-000000000000', 'resume_analysis': {'skills': ['Python'], 'technologies': ['Docker']}, 'gap_analysis': {'missing_skills': ['FastAPI'], 'match_percentage': 50.0}, 'roadmap': [{'step': 1, 'skill': 'FastAPI', 'description': 'Learn FastAPI'}], 'created_at': '2026-05-06T12:03:33.009942+00:00'}] count=None

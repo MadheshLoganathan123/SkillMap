@@ -11,6 +11,8 @@ interface AnalysisResult {
   existingSkills: string[]
   missingSkills: string[]
   skillScores: Record<string, number>
+  achievements?: string[]
+  projects?: string[]
 }
 
 interface AnalysisResultsProps {
@@ -182,6 +184,42 @@ export function AnalysisResults({ result, onGenerateRoadmap, onNewAnalysis }: An
           </CardContent>
         </Card>
       )}
+
+      {/* Achievements & Projects */}
+      <div className="grid gap-6 md:grid-cols-2">
+        {result.achievements && result.achievements.length > 0 && (
+          <Card>
+            <CardHeader>
+              <CardTitle className="text-lg">Extracted Achievements</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <ul className="space-y-2">
+                {result.achievements.map((ach, i) => (
+                  <li key={i} className="text-sm border-l-2 border-primary pl-4 py-1">
+                    {ach}
+                  </li>
+                ))}
+              </ul>
+            </CardContent>
+          </Card>
+        )}
+        {result.projects && result.projects.length > 0 && (
+          <Card>
+            <CardHeader>
+              <CardTitle className="text-lg">Identified Projects</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="grid gap-2">
+                {result.projects.map((proj, i) => (
+                  <div key={i} className="text-sm p-2 rounded bg-muted/50">
+                    {proj}
+                  </div>
+                ))}
+              </div>
+            </CardContent>
+          </Card>
+        )}
+      </div>
 
       {/* Action Buttons */}
       <div className="flex flex-col sm:flex-row gap-4 justify-center">

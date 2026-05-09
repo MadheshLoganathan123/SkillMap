@@ -1,0 +1,12 @@
+--- NLP Extraction Results ---
+Skills: ['Python', 'JavaScript', 'React', 'FastAPI', 'PostgreSQL']
+Technologies: ['Docker', 'AWS', 'Supabase']
+
+Achievements:
+ - Led a team of 5 developers to launch a new e-commerce platform, increasing revenue by 20%.
+ - Automated CI/CD pipelines using Docker and Jenkins, reducing deployment time by 50%.
+ - Spearheaded the migration to AWS, saving $10k in monthly infrastructure costs.
+
+Projects:
+ - Personal Portfolio: Built a full-stack job board using Next.js and Supabase.
+ - AI Chatbot: Developed a RAG-based chatbot using Python and OpenAI.

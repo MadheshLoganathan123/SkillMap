@@ -6,7 +6,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { Alert, AlertDescription } from "@/components/ui/alert"
-import { Map, Calendar, BookOpen, Loader2, ArrowRight, CheckCircle2, Clock, ExternalLink } from "lucide-react"
+import { Map, Calendar, BookOpen, Loader2, ArrowRight, CheckCircle2, Clock, ExternalLink, Sparkles } from "lucide-react"
 import { createClient } from "@/lib/supabase/client"
 import Link from "next/link"
 
@@ -14,6 +14,10 @@ interface Week {
   week: number
   skills: string[]
   resources: { title: string; url: string; type: string }[]
+  duration_weeks?: number
+  description?: string
+  learning_objectives?: string[]
+  project_ideas?: string[]
 }
 
 interface Roadmap {
@@ -113,49 +117,97 @@ export default function RoadmapPage() {
     const supabase = createClient()
     
     try {
-      // First, get the latest analysis if no analysisId provided
-      let targetAnalysisId = analysisId
-      
-      if (!targetAnalysisId) {
-        const { data: latestAnalysis } = await supabase
-          .from("analyses")
-          .select("*")
-          .order("created_at", { ascending: false })
-          .limit(1)
-          .single()
-        
-        if (latestAnalysis) {
-          targetAnalysisId = latestAnalysis.id
-          setAnalysis(latestAnalysis)
-        }
-      } else {
-        const { data: analysisData } = await supabase
-          .from("analyses")
-          .select("*")
-          .eq("id", targetAnalysisId)
-          .single()
-        
-        if (analysisData) {
-          setAnalysis(analysisData)
-        }
+      const { data: { user } } = await supabase.auth.getUser()
+      if (!user) {
+        setError("Please sign in to view your roadmap.")
+        setLoading(false)
+        return
       }
 
-      // Check if roadmap exists for this analysis
-      if (targetAnalysisId) {
-        const { data: existingRoadmap } = await supabase
-          .from("roadmaps")
-          .select("*")
-          .eq("analysis_id", targetAnalysisId)
-          .order("created_at", { ascending: false })
-          .limit(1)
-          .single()
-        
-        if (existingRoadmap) {
-          setRoadmap(existingRoadmap)
+      // Fetch roadmap data from backend
+      const response = await fetch(`http://localhost:8000/dashboard/${user.id}`)
+      
+      if (response.ok) {
+        const data = await response.json()
+
+        // Always set analysis data if gaps exist (even if roadmap isn't persisted yet)
+        if (data.gaps) {
+          setAnalysis({
+            id: data.roadmap?.analysis_id || 'backend-generated',
+            missing_skills: data.gaps.missing_skills || [],
+            match_score: data.profile?.match_score || 0
+          })
         }
+
+        // If roadmap exists in backend, use it
+        if (data.roadmap) {
+          const backendRoadmap = data.roadmap
+          let finalWeeks: Week[] = []
+          
+          // Try to extract weeks from the roadmap
+          if (backendRoadmap.weeks && Array.isArray(backendRoadmap.weeks) && backendRoadmap.weeks.length > 0) {
+            // Process each week and ensure it has resources
+            finalWeeks = backendRoadmap.weeks.map((week: any) => {
+              const processedWeek: Week = {
+                week: week.week || 1,
+                skills: Array.isArray(week.skills) ? week.skills : [],
+                resources: [],
+                duration_weeks: week.duration_weeks,
+                description: week.description,
+                learning_objectives: week.learning_objectives,
+                project_ideas: week.project_ideas
+              }
+              
+              // Add resources for each skill if not present
+              if (!week.resources || week.resources.length === 0) {
+                processedWeek.resources = processedWeek.skills.flatMap(skill => getDefaultResources(skill))
+              } else {
+                processedWeek.resources = week.resources
+              }
+              
+              return processedWeek
+            })
+          } else if (backendRoadmap.roadmap && Array.isArray(backendRoadmap.roadmap) && backendRoadmap.roadmap.length > 0) {
+            // Convert roadmap steps to weeks
+            finalWeeks = backendRoadmap.roadmap.map((item: any, index: number) => ({
+              week: item.step || index + 1,
+              skills: [item.skill],
+              resources: getDefaultResources(item.skill),
+              duration_weeks: item.duration_weeks,
+              description: item.description,
+              learning_objectives: item.learning_objectives,
+              project_ideas: item.project_ideas
+            }))
+          }
+          
+          if (finalWeeks.length > 0) {
+            setRoadmap({
+              id: backendRoadmap.id || 'generated',
+              weeks: finalWeeks,
+              analysis_id: backendRoadmap.analysis_id || 'backend-generated'
+            })
+          } else {
+            setError("Roadmap data is invalid. Please regenerate your assessment.")
+          }
+        } else {
+          // If backend hasn't saved a roadmap yet, still show a generated one from gaps.
+          // This prevents a blank roadmap page when the quiz submission succeeded but persistence failed.
+          const missingSkills = data?.gaps?.missing_skills
+          if (Array.isArray(missingSkills) && missingSkills.length > 0) {
+            const weeks = generateRoadmapWeeks(missingSkills)
+            setRoadmap({
+              id: "client-generated",
+              weeks,
+              analysis_id: "client-generated"
+            })
+          }
+        }
+      } else {
+        await response.text().catch(() => null)
+        setError("Failed to load roadmap data")
       }
     } catch (err) {
-      console.error("Error loading data:", err)
+      setError("An error occurred while loading your roadmap")
     } finally {
       setLoading(false)
     }
@@ -208,34 +260,46 @@ export default function RoadmapPage() {
 
   if (loading) {
     return (
-      <div className="flex items-center justify-center min-h-[400px]">
+      <div className="flex items-center justify-center min-h-100">
         <Loader2 className="w-8 h-8 animate-spin text-primary" />
       </div>
     )
   }
 
-  if (!analysis) {
+  if (!analysis && !roadmap) {
     return (
-      <div className="max-w-4xl mx-auto">
+      <div className="max-w-4xl mx-auto space-y-4">
         <Card className="border-dashed">
           <CardContent className="p-8 text-center">
             <div className="w-16 h-16 rounded-full bg-primary/10 flex items-center justify-center mx-auto mb-4">
               <Map className="w-8 h-8 text-primary" />
             </div>
             <h3 className="text-xl font-semibold text-foreground mb-2">
-              No Analysis Found
+              No Roadmap Yet
             </h3>
             <p className="text-muted-foreground mb-6 max-w-md mx-auto">
-              Complete a skill gap analysis first to generate your personalized learning roadmap.
+              Complete your career assessment on the dashboard to automatically generate your personalized learning roadmap.
             </p>
-            <Link href="/upload">
-              <Button size="lg" className="gap-2">
-                Start Analysis
-                <ArrowRight className="w-4 h-4" />
+            <div className="flex gap-3 justify-center">
+              <Link href="/dashboard">
+                <Button size="lg" className="gap-2">
+                  Go to Dashboard
+                  <ArrowRight className="w-4 h-4" />
+                </Button>
+              </Link>
+              <Button size="lg" variant="outline" onClick={loadData} className="gap-2">
+                <Loader2 className="w-4 h-4" />
+                Refresh
               </Button>
-            </Link>
+            </div>
           </CardContent>
         </Card>
+        
+        {error && (
+          <Alert variant="destructive">
+            <AlertDescription>{error}</AlertDescription>
+          </Alert>
+        )}
       </div>
     )
   }
@@ -256,35 +320,23 @@ export default function RoadmapPage() {
       )}
 
       {!roadmap ? (
-        <Card>
+        <Card className="border-dashed">
           <CardContent className="p-8 text-center">
             <div className="w-16 h-16 rounded-full bg-accent/10 flex items-center justify-center mx-auto mb-4">
               <Map className="w-8 h-8 text-accent" />
             </div>
             <h3 className="text-xl font-semibold text-foreground mb-2">
-              Generate Your Roadmap
+              Roadmap Not Generated Yet
             </h3>
-            <p className="text-muted-foreground mb-4">
-              Based on your analysis, you need to learn {(analysis.missing_skills as string[]).length} skills.
+            <p className="text-muted-foreground mb-6">
+              Complete your career assessment on the dashboard to automatically generate your roadmap.
             </p>
-            <div className="flex flex-wrap justify-center gap-2 mb-6">
-              {(analysis.missing_skills as string[]).map((skill, idx) => (
-                <Badge key={idx} variant="secondary">{skill}</Badge>
-              ))}
-            </div>
-            <Button onClick={handleGenerateRoadmap} disabled={generating} className="gap-2">
-              {generating ? (
-                <>
-                  <Loader2 className="w-4 h-4 animate-spin" />
-                  Generating...
-                </>
-              ) : (
-                <>
-                  <Map className="w-4 h-4" />
-                  Generate Roadmap
-                </>
-              )}
-            </Button>
+            <Link href="/dashboard">
+              <Button className="gap-2">
+                <ArrowRight className="w-4 h-4" />
+                Go to Dashboard
+              </Button>
+            </Link>
           </CardContent>
         </Card>
       ) : (
@@ -307,6 +359,13 @@ export default function RoadmapPage() {
                   </div>
                 </CardHeader>
                 <CardContent className="space-y-4">
+                  {/* Description if available */}
+                  {week.description && (
+                    <div className="p-3 rounded-lg bg-muted/50 border">
+                      <p className="text-sm text-muted-foreground">{week.description}</p>
+                    </div>
+                  )}
+
                   {/* Skills for this week */}
                   <div>
                     <h4 className="text-sm font-medium text-foreground mb-2">Skills to Learn</h4>
@@ -319,6 +378,36 @@ export default function RoadmapPage() {
                       ))}
                     </div>
                   </div>
+
+                  {/* Learning Objectives */}
+                  {week.learning_objectives && week.learning_objectives.length > 0 && (
+                    <div>
+                      <h4 className="text-sm font-medium text-foreground mb-2">Learning Objectives</h4>
+                      <ul className="space-y-1">
+                        {week.learning_objectives.map((obj, idx) => (
+                          <li key={idx} className="text-sm text-muted-foreground flex gap-2">
+                            <CheckCircle2 className="w-4 h-4 text-primary shrink-0 mt-0.5" />
+                            {obj}
+                          </li>
+                        ))}
+                      </ul>
+                    </div>
+                  )}
+
+                  {/* Project Ideas */}
+                  {week.project_ideas && week.project_ideas.length > 0 && (
+                    <div>
+                      <h4 className="text-sm font-medium text-foreground mb-2">Project Ideas</h4>
+                      <ul className="space-y-1">
+                        {week.project_ideas.map((project, idx) => (
+                          <li key={idx} className="text-sm text-muted-foreground flex gap-2">
+                            <Sparkles className="w-4 h-4 text-accent shrink-0 mt-0.5" />
+                            {project}
+                          </li>
+                        ))}
+                      </ul>
+                    </div>
+                  )}
 
                   {/* Resources */}
                   <div>
