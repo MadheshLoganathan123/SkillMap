@@ -241,54 +241,76 @@ export function VoiceInterview({
   if (!isEnabled) return null;
 
   return (
-    <div className="flex gap-2 items-center">
-      <Button
-        onClick={handleRecordClick}
-        onMouseDown={() => {
-          if (isPushToTalk && !isRecording) startRecording();
-        }}
-        onMouseUp={() => {
-          if (isPushToTalk && isRecordingRef.current) stopRecording(true);
-        }}
-        onMouseLeave={() => {
-          if (isPushToTalk && isRecordingRef.current) stopRecording(true);
-        }}
-        variant={isRecording ? "destructive" : "outline"}
-        size="icon"
-        className="w-12 h-12"
-        disabled={!isSupported}
-        title={isPushToTalk ? "Hold to talk" : (isRecording ? "Stop recording" : "Start recording")}
-      >
-        {isRecording ? (
-          <MicOff className="h-5 w-5 animate-pulse" />
-        ) : (
-          <Mic className="h-5 w-5" />
-        )}
-      </Button>
-      
-      <Button
-        onClick={toggleSpeech}
-        variant="outline"
-        size="icon"
-        className="w-12 h-12"
-        disabled={!isSupported}
-        title={isSpeaking ? "Stop speaking" : "Speak question"}
-      >
-        {isSpeaking ? (
-          <VolumeX className="h-5 w-5 animate-pulse" />
-        ) : (
-          <Volume2 className="h-5 w-5" />
-        )}
-      </Button>
+    <div className="flex flex-col gap-2">
+      <div className="flex gap-2 items-center">
+        <Button
+          onClick={handleRecordClick}
+          onMouseDown={() => {
+            if (isPushToTalk && !isRecording) startRecording();
+          }}
+          onMouseUp={() => {
+            if (isPushToTalk && isRecordingRef.current) stopRecording(true);
+          }}
+          onMouseLeave={() => {
+            if (isPushToTalk && isRecordingRef.current) stopRecording(true);
+          }}
+          variant={isRecording ? "destructive" : "outline"}
+          size="icon"
+          className={cn(
+            "w-12 h-12 transition-all",
+            isRecording && "ring-2 ring-red-500 ring-offset-2"
+          )}
+          disabled={!isSupported}
+          title={isPushToTalk ? "Hold to talk" : (isRecording ? "Stop recording" : "Start recording")}
+        >
+          {isRecording ? (
+            <MicOff className="h-5 w-5 animate-pulse" />
+          ) : (
+            <Mic className="h-5 w-5" />
+          )}
+        </Button>
+        
+        <Button
+          onClick={toggleSpeech}
+          variant="outline"
+          size="icon"
+          className="w-12 h-12"
+          disabled={!isSupported}
+          title={isSpeaking ? "Stop speaking" : "Speak question"}
+        >
+          {isSpeaking ? (
+            <VolumeX className="h-5 w-5 animate-pulse" />
+          ) : (
+            <Volume2 className="h-5 w-5" />
+          )}
+        </Button>
 
-      <Button
-        variant="ghost"
-        size="sm"
-        className={cn("text-xs", isPushToTalk ? "text-primary" : "text-muted-foreground")}
-        onClick={() => setIsPushToTalk(prev => !prev)}
-      >
-        {isPushToTalk ? 'Push-to-talk' : 'Toggle-listen'}
-      </Button>
+        <Button
+          variant="ghost"
+          size="sm"
+          className={cn("text-xs", isPushToTalk ? "text-primary" : "text-muted-foreground")}
+          onClick={() => setIsPushToTalk(prev => !prev)}
+        >
+          {isPushToTalk ? 'Push-to-talk' : 'Toggle-listen'}
+        </Button>
+      </div>
+      
+      {!isSupported && (
+        <p className="text-xs text-destructive">
+          Voice not supported in your browser
+        </p>
+      )}
+      
+      {isSupported && (
+        <p className="text-xs text-muted-foreground">
+          {isPushToTalk 
+            ? "Hold the mic button and speak your answer" 
+            : isRecording 
+              ? "🎤 Recording... Click to stop"
+              : "Click mic to start recording your answer"
+          }
+        </p>
+      )}
     </div>
   );
 }

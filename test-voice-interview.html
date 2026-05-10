@@ -1,0 +1,202 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Voice Interview Test</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 800px;
+            margin: 50px auto;
+            padding: 20px;
+            background: #1a1a1a;
+            color: #fff;
+        }
+        .container {
+            background: #2a2a2a;
+            padding: 30px;
+            border-radius: 10px;
+        }
+        button {
+            padding: 15px 30px;
+            margin: 10px;
+            font-size: 16px;
+            cursor: pointer;
+            border: none;
+            border-radius: 5px;
+            background: #4a9eff;
+            color: white;
+        }
+        button:hover {
+            background: #3a8eef;
+        }
+        button:disabled {
+            background: #666;
+            cursor: not-allowed;
+        }
+        .recording {
+            background: #ff4a4a;
+            animation: pulse 1s infinite;
+        }
+        @keyframes pulse {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.7; }
+        }
+        .transcript {
+            background: #333;
+            padding: 20px;
+            margin: 20px 0;
+            border-radius: 5px;
+            min-height: 100px;
+        }
+        .status {
+            padding: 10px;
+            margin: 10px 0;
+            border-radius: 5px;
+            background: #444;
+        }
+        .success { background: #2d5; }
+        .error { background: #d52; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🎤 Voice Interview Test</h1>
+        <p>Test the browser's speech recognition and synthesis capabilities</p>
+        
+        <div class="status" id="status">Status: Ready</div>
+        
+        <div>
+            <button id="speakBtn">🔊 Speak Question</button>
+            <button id="recordBtn">🎤 Start Recording</button>
+            <button id="stopBtn" disabled>⏹️ Stop Recording</button>
+        </div>
+        
+        <div class="transcript">
+            <h3>Transcript:</h3>
+            <p id="transcript">Your speech will appear here...</p>
+        </div>
+        
+        <div class="transcript">
+            <h3>Final Transcript:</h3>
+            <p id="finalTranscript">Final transcript will appear here...</p>
+        </div>
+    </div>
+
+    <script>
+        const statusEl = document.getElementById('status');
+        const transcriptEl = document.getElementById('transcript');
+        const finalTranscriptEl = document.getElementById('finalTranscript');
+        const speakBtn = document.getElementById('speakBtn');
+        const recordBtn = document.getElementById('recordBtn');
+        const stopBtn = document.getElementById('stopBtn');
+
+        const testQuestion = "Tell me about your experience with JavaScript and React.";
+        
+        let recognition = null;
+        let synthesis = window.speechSynthesis;
+
+        // Check browser support
+        const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+        
+        if (!SpeechRecognition) {
+            statusEl.textContent = 'Status: Speech Recognition not supported';
+            statusEl.className = 'status error';
+            recordBtn.disabled = true;
+            stopBtn.disabled = true;
+        } else {
+            statusEl.textContent = 'Status: Speech Recognition supported ✓';
+            statusEl.className = 'status success';
+            
+            recognition = new SpeechRecognition();
+            recognition.continuous = true;
+            recognition.interimResults = true;
+            recognition.lang = 'en-US';
+            
+            recognition.onstart = () => {
+                statusEl.textContent = 'Status: Listening...';
+                recordBtn.disabled = true;
+                recordBtn.className = 'recording';
+                stopBtn.disabled = false;
+            };
+            
+            recognition.onresult = (event) => {
+                let interimTranscript = '';
+                let finalTranscript = '';
+                
+                for (let i = event.resultIndex; i < event.results.length; i++) {
+                    const transcript = event.results[i][0].transcript;
+                    const confidence = event.results[i][0].confidence;
+                    
+                    if (event.results[i].isFinal) {
+                        finalTranscript += transcript + ' ';
+                        finalTranscriptEl.textContent = finalTranscript + `(confidence: ${(confidence * 100).toFixed(0)}%)`;
+                    } else {
+                        interimTranscript += transcript;
+                    }
+                }
+                
+                transcriptEl.textContent = interimTranscript || 'Listening...';
+            };
+            
+            recognition.onerror = (event) => {
+                statusEl.textContent = `Status: Error - ${event.error}`;
+                statusEl.className = 'status error';
+                recordBtn.disabled = false;
+                recordBtn.className = '';
+                stopBtn.disabled = true;
+            };
+            
+            recognition.onend = () => {
+                statusEl.textContent = 'Status: Stopped';
+                recordBtn.disabled = false;
+                recordBtn.className = '';
+                stopBtn.disabled = true;
+            };
+        }
+        
+        if (!synthesis) {
+            statusEl.textContent = 'Status: Speech Synthesis not supported';
+            statusEl.className = 'status error';
+            speakBtn.disabled = true;
+        }
+        
+        speakBtn.addEventListener('click', () => {
+            if (!synthesis) return;
+            
+            synthesis.cancel();
+            const utterance = new SpeechSynthesisUtterance(testQuestion);
+            utterance.rate = 0.9;
+            utterance.pitch = 1;
+            utterance.volume = 1;
+            
+            utterance.onstart = () => {
+                statusEl.textContent = 'Status: Speaking question...';
+                speakBtn.disabled = true;
+            };
+            
+            utterance.onend = () => {
+                statusEl.textContent = 'Status: Ready';
+                speakBtn.disabled = false;
+            };
+            
+            synthesis.speak(utterance);
+        });
+        
+        recordBtn.addEventListener('click', () => {
+            if (recognition) {
+                transcriptEl.textContent = 'Listening...';
+                finalTranscriptEl.textContent = 'Waiting for speech...';
+                recognition.start();
+            }
+        });
+        
+        stopBtn.addEventListener('click', () => {
+            if (recognition) {
+                recognition.stop();
+            }
+        });
+    </script>
+</body>
+</html>
