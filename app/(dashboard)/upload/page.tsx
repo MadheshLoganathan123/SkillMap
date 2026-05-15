@@ -72,14 +72,22 @@ export default function UploadPage() {
       const existingSkills = data.gap_analysis?.shared_skills || []
       const missingSkills = data.gap_analysis?.missing_skills || []
       
+      // Convert achievements and projects to strings if they're objects
+      const achievements = (data.resume_analysis?.achievements || []).map((ach: any) => 
+        typeof ach === 'string' ? ach : ach.description || ach.name || JSON.stringify(ach)
+      )
+      const projects = (data.resume_analysis?.projects || []).map((proj: any) => 
+        typeof proj === 'string' ? proj : proj.description || proj.name || JSON.stringify(proj)
+      )
+      
       setResult({
         id: Math.random().toString(36).substring(7),
         matchScore: Math.round(matchScore),
         existingSkills: existingSkills,
         missingSkills: missingSkills,
         skillScores: existingSkills.reduce((acc: any, skill: string) => ({ ...acc, [skill]: 90 }), {}),
-        achievements: data.resume_analysis?.achievements || [],
-        projects: data.resume_analysis?.projects || []
+        achievements: achievements,
+        projects: projects
       })
     } catch (err) {
       console.error(err)

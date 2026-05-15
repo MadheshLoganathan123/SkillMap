@@ -277,11 +277,11 @@ export default function ProgressPage() {
                 ) : progressPercentage >= 50 ? (
                   "Great progress! Keep it up!"
                 ) : (
-                  "You&apos;re on your way!"
+                  "You're on your way!"
                 )}
               </h2>
               <p className="text-muted-foreground mb-4">
-                You&apos;ve completed {completedCount} of {totalCount} skills in your learning roadmap.
+                You've completed {completedCount} of {totalCount} skills in your learning roadmap.
               </p>
               <div className="flex flex-wrap gap-2 justify-center md:justify-start">
                 <Badge variant="secondary" className="gap-1">

@@ -347,7 +347,7 @@ export default function DashboardClient({ user }: DashboardProps) {
                         No projects identified
                       </p>
                       <p className="text-xs text-muted-foreground max-w-md">
-                        Make sure your resume has a &quot;PROJECTS&quot; section with project titles.
+                        Make sure your resume has a "PROJECTS" section with project titles.
                       </p>
                     </div>
                   )}

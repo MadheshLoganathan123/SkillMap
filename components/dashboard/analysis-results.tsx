@@ -11,8 +11,8 @@ interface AnalysisResult {
   existingSkills: string[]
   missingSkills: string[]
   skillScores: Record<string, number>
-  achievements?: string[]
-  projects?: string[]
+  achievements?: (string | { name?: string; description?: string })[]
+  projects?: (string | { name?: string; description?: string })[]
 }
 
 interface AnalysisResultsProps {
@@ -194,11 +194,14 @@ export function AnalysisResults({ result, onGenerateRoadmap, onNewAnalysis }: An
             </CardHeader>
             <CardContent>
               <ul className="space-y-2">
-                {result.achievements.map((ach, i) => (
-                  <li key={i} className="text-sm border-l-2 border-primary pl-4 py-1">
-                    {ach}
-                  </li>
-                ))}
+                {result.achievements.map((ach, i) => {
+                  const achText = typeof ach === 'string' ? ach : JSON.stringify(ach);
+                  return (
+                    <li key={i} className="text-sm border-l-2 border-primary pl-4 py-1">
+                      {achText}
+                    </li>
+                  );
+                })}
               </ul>
             </CardContent>
           </Card>
@@ -210,11 +213,14 @@ export function AnalysisResults({ result, onGenerateRoadmap, onNewAnalysis }: An
             </CardHeader>
             <CardContent>
               <div className="grid gap-2">
-                {result.projects.map((proj, i) => (
-                  <div key={i} className="text-sm p-2 rounded bg-muted/50">
-                    {proj}
-                  </div>
-                ))}
+                {result.projects.map((proj, i) => {
+                  const projText = typeof proj === 'string' ? proj : JSON.stringify(proj);
+                  return (
+                    <div key={i} className="text-sm p-2 rounded bg-muted/50">
+                      {projText}
+                    </div>
+                  );
+                })}
               </div>
             </CardContent>
           </Card>
